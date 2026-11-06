@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "672807690917",
+    "project_id": "sago-minutas",
+    "storage_bucket": "sago-minutas.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:672807690917:android:f85c054844c251d78c234c",
+        "android_client_info": {
+          "package_name": "com.example.sgominutas"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAgzCaBjLAQ6tIUp9KjC9alx8sXrcEJbok"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
