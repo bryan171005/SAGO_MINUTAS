@@ -49,7 +49,10 @@ function Dashboard({ alSalir }) {
           detalles: data.detalles || "Sin detalles adicionales",
           actividadesTexto: tareas.join(", ") || "Ninguna",
           estatus: data.estatus || "Pendiente",
-          foto: data.fotoBase64 || data.fotoUrl || data.foto || null
+          foto: data.fotoBase64 || data.fotoUrl || data.foto || null,
+          latitud: Number(data.latitud) || 0,
+          longitud: Number(data.longitud) || 0,
+          ubicacionTexto: data.ubicacionTexto || ""
         };
       });
       setMinutasDatos(datos);
@@ -363,7 +366,7 @@ function Dashboard({ alSalir }) {
             </div>
           </div>
         ) : (
-          /* TABLA DE MINUTAS CON COLUMNA DE EVIDENCIA FOTOGRÁFICA */
+          /* TABLA DE MINUTAS CON COLUMNA DE EVIDENCIA FOTOGRÁFICA Y GPS */
           <>
             <div className="stats-grid">
               <div className="stat-card">
@@ -411,7 +414,9 @@ function Dashboard({ alSalir }) {
                           <div style={{ fontSize: '0.95rem' }}>{minuta.fecha}</div>
                           <div style={{ fontSize: '0.8rem', color: '#888e93' }}>{minuta.hora}</div>
                         </td>
-                        <td style={{ fontWeight: '600' }}>{minuta.cliente}</td>
+                        <td style={{ fontWeight: '600' }}>
+                          {minuta.cliente} {minuta.latitud !== 0 && <span title="Ubicación GPS registrada">📍</span>}
+                        </td>
                         <td>{minuta.vendedor}</td>
                         <td style={{ color: '#d4af37', fontSize: '0.9rem' }}>{minuta.actividadesTexto}</td>
                         <td style={{ maxWidth: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -467,7 +472,7 @@ function Dashboard({ alSalir }) {
           </>
         )}
 
-        {/* MODAL DETALLES CON EVIDENCIA FOTOGRÁFICA AMPLIADA */}
+        {/* MODAL DETALLES CON EVIDENCIA FOTOGRÁFICA Y MAPA GPS */}
         {minutaSeleccionada && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
             <div style={{ background: '#171a1c', border: '1px solid rgba(255,255,255,0.08)', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', color: '#ffffff' }}>
@@ -507,7 +512,7 @@ function Dashboard({ alSalir }) {
               </div>
 
               {/* EVIDENCIA FOTOGRÁFICA EN EL MODAL */}
-              <div style={{ marginBottom: '25px' }}>
+              <div style={{ marginBottom: '20px' }}>
                 <label style={{ color: '#888e93', fontSize: '0.85rem' }}>Evidencia Fotográfica Adjunta</label>
                 <div style={{ marginTop: '8px', background: '#111315', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
                   {minutaSeleccionada.foto ? (
@@ -519,6 +524,47 @@ function Dashboard({ alSalir }) {
                   ) : (
                     <p style={{ margin: '15px 0', color: '#888e93', fontSize: '0.9rem' }}>
                       📷 Esta minuta no contiene fotografía adjunta.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* UBICACIÓN GPS Y MAPA EN EL MODAL */}
+              <div style={{ marginBottom: '25px' }}>
+                <label style={{ color: '#888e93', fontSize: '0.85rem' }}>Ubicación de la Visita (GPS)</label>
+                <div style={{ marginTop: '8px', padding: '12px', backgroundColor: '#111315', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  {minutaSeleccionada.latitud !== 0 && minutaSeleccionada.longitud !== 0 ? (
+                    <>
+                      <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', fontWeight: '600', color: '#ffffff' }}>
+                        📍 {minutaSeleccionada.ubicacionTexto || `${minutaSeleccionada.latitud}, ${minutaSeleccionada.longitud}`}
+                      </p>
+
+                      <iframe
+                        title={`mapa-${minutaSeleccionada.id}`}
+                        width="100%"
+                        height="190"
+                        style={{ border: 0, borderRadius: '6px' }}
+                        loading="lazy"
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${minutaSeleccionada.longitud - 0.004}%2C${minutaSeleccionada.latitud - 0.004}%2C${minutaSeleccionada.longitud + 0.004}%2C${minutaSeleccionada.latitud + 0.004}&layer=mapnik&marker=${minutaSeleccionada.latitud}%2C${minutaSeleccionada.longitud}`}
+                      />
+
+                      <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.78rem', color: '#888e93' }}>
+                          Coords: {minutaSeleccionada.latitud.toFixed(5)}, {minutaSeleccionada.longitud.toFixed(5)}
+                        </span>
+                        <a
+                          href={`https://www.google.com/maps?q=${minutaSeleccionada.latitud},${minutaSeleccionada.longitud}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: '0.85rem', color: '#d4af37', fontWeight: '600', textDecoration: 'none' }}
+                        >
+                          Abrir ubicación en Google Maps ↗
+                        </a>
+                      </div>
+                    </>
+                  ) : (
+                    <p style={{ margin: '10px 0', color: '#888e93', fontSize: '0.9rem', textAlign: 'center' }}>
+                      📍 Esta minuta no cuenta con coordenadas GPS registradas.
                     </p>
                   )}
                 </div>

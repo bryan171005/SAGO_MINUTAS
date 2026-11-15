@@ -1,5 +1,6 @@
 package com.example.sgominutas.uisago.screens
 
+import android.Manifest
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
@@ -23,6 +24,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.sgominutas.services.LocationHelper
+import com.example.sgominutas.services.UbicacionMinuta
 import com.google.firebase.firestore.FirebaseFirestore
 import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
@@ -91,6 +94,34 @@ fun PantallaDiseñoSAGO() {
     ) { bitmap ->
         if (bitmap != null) {
             bitmapFoto = bitmap
+        }
+    }
+
+    // ========================================================================
+    // ESTADOS Y LANZADOR DE UBICACIÓN GPS (LocationHelper)
+    // ========================================================================
+    val locationHelper = remember { LocationHelper(contexto) }
+    var ubicacionActual by remember { mutableStateOf(UbicacionMinuta()) }
+    var obteniendoUbicacion by remember { mutableStateOf(false) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            obteniendoUbicacion = true
+            locationHelper.obtenerUbicacionActual { resultado ->
+                ubicacionActual = resultado
+                obteniendoUbicacion = false
+                if (resultado.latitud != 0.0) {
+                    Toast.makeText(contexto, "Ubicación capturada correctamente", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(contexto, "No se pudo obtener el GPS. Verifica que esté encendido", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } else {
+            Toast.makeText(contexto, "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -337,9 +368,71 @@ fun PantallaDiseñoSAGO() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // ====================================================================
+        // TARJETA DE GEOLOCALIZACIÓN GPS DEL LUGAR
+        // ====================================================================
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Ubicación de la Visita (GPS)",
+                    color = Color(0xFF1E2225),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
 
-        // BOTÓN PRINCIPAL ACTUALIZADO CON ENVÍO DE FOTO BASE64
+                Text(
+                    text = if (ubicacionActual.latitud != 0.0) {
+                        "📍 ${ubicacionActual.direccionTexto}\n(${String.format(Locale.US, "%.5f", ubicacionActual.latitud)}, ${String.format(Locale.US, "%.5f", ubicacionActual.longitud)})"
+                    } else {
+                        "Sin ubicación capturada"
+                    },
+                    color = if (ubicacionActual.latitud != 0.0) Color(0xFF1E2225) else Color(0xFF5D6367),
+                    fontSize = 13.sp
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !cargando && !obteniendoUbicacion
+                ) {
+                    if (obteniendoUbicacion) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFFE21C24)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Obteniendo GPS...", color = Color(0xFF1E2225))
+                    } else {
+                        Text(
+                            text = if (ubicacionActual.latitud != 0.0) "Actualizar Ubicación" else "Capturar Ubicación Actual",
+                            color = Color(0xFFE21C24),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // BOTÓN PRINCIPAL ACTUALIZADO CON ENVÍO DE FOTO BASE64 Y UBICACIÓN GPS
         Button(
             onClick = {
                 if (clienteSeleccionado.isNotEmpty()) {
@@ -363,6 +456,9 @@ fun PantallaDiseñoSAGO() {
                         "hora" to horaActual,
                         "estatus" to "Pendiente",
                         "fotoBase64" to fotoBase64,
+                        "latitud" to ubicacionActual.latitud,
+                        "longitud" to ubicacionActual.longitud,
+                        "ubicacionTexto" to ubicacionActual.direccionTexto,
                         "actividades" to hashMapOf(
                             "talachear" to actTalachear,
                             "semaforear" to actSemaforear,
@@ -385,6 +481,7 @@ fun PantallaDiseñoSAGO() {
                             actRecolectarDesecho = false
                             actRecolectarRenovado = false
                             bitmapFoto = null
+                            ubicacionActual = UbicacionMinuta()
                         }
                         .addOnFailureListener { e ->
                             cargando = false
