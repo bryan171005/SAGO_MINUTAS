@@ -1,7 +1,9 @@
 package com.example.sgominutas.uisago.screens
 
+import android.Manifest
 import android.content.Context
 import android.graphics.Bitmap
+import android.util.Base64
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,7 +24,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.sgominutas.services.LocationHelper
+import com.example.sgominutas.services.UbicacionMinuta
 import com.google.firebase.firestore.FirebaseFirestore
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -31,13 +36,40 @@ import java.util.Locale
 @Composable
 fun PantallaDiseñoSAGO() {
     val contexto = LocalContext.current
+    val db = remember { FirebaseFirestore.getInstance() }
 
     // Recuperamos el nombre del usuario logueado desde SharedPreferences
     val sharedPref = remember { contexto.getSharedPreferences("SAGO_PREFS", Context.MODE_PRIVATE) }
     val vendedorAutenticado = remember { sharedPref.getString("usuario_activo", "Operador Desconocido") ?: "Operador Desconocido" }
 
-    // LISTA DE CLIENTES ACTUALIZADA
-    val listaClientes = listOf("Aldafa Transportes", "Transportes JUSA", "L&M Zacatecas", "Servicios SAGO", "Particular")
+    // Estado dinámico para la lista de clientes obtenida de Firestore
+    var listaClientes by remember { mutableStateOf<List<String>>(emptyList()) }
+    var cargandoClientes by remember { mutableStateOf(true) }
+
+    // Cargar clientes en tiempo real desde la colección "clientes" en Firestore
+    DisposableEffect(Unit) {
+        val listener = db.collection("clientes")
+            .whereEqualTo("activo", true)
+            .addSnapshotListener { snapshot, error ->
+                cargandoClientes = false
+                if (error != null) {
+                    Toast.makeText(contexto, "Error al cargar clientes: ${error.message}", Toast.LENGTH_SHORT).show()
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && !snapshot.isEmpty) {
+                    listaClientes = snapshot.documents.mapNotNull { doc ->
+                        doc.getString("nombreEmpresa")
+                    }.sorted()
+                } else {
+                    listaClientes = emptyList()
+                }
+            }
+
+        onDispose {
+            listener.remove()
+        }
+    }
 
     // Estados para controlar qué opción está seleccionada
     var clienteSeleccionado by remember { mutableStateOf("") }
@@ -62,6 +94,34 @@ fun PantallaDiseñoSAGO() {
     ) { bitmap ->
         if (bitmap != null) {
             bitmapFoto = bitmap
+        }
+    }
+
+    // ========================================================================
+    // ESTADOS Y LANZADOR DE UBICACIÓN GPS (LocationHelper)
+    // ========================================================================
+    val locationHelper = remember { LocationHelper(contexto) }
+    var ubicacionActual by remember { mutableStateOf(UbicacionMinuta()) }
+    var obteniendoUbicacion by remember { mutableStateOf(false) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            obteniendoUbicacion = true
+            locationHelper.obtenerUbicacionActual { resultado ->
+                ubicacionActual = resultado
+                obteniendoUbicacion = false
+                if (resultado.latitud != 0.0) {
+                    Toast.makeText(contexto, "Ubicación capturada correctamente", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(contexto, "No se pudo obtener el GPS. Verifica que esté encendido", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } else {
+            Toast.makeText(contexto, "Permiso de ubicación denegado", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -96,7 +156,7 @@ fun PantallaDiseñoSAGO() {
         Divider(color = Color(0xFF9EA3A6).copy(alpha = 0.3f), thickness = 1.dp)
 
         // ====================================================================
-        // IDENTIFICADOR AUTOMÁTICO DE SESIÓN (REEMPLAZA AL COMBOBOX DE TRABAJADOR)
+        // IDENTIFICADOR AUTOMÁTICO DE SESIÓN
         // ====================================================================
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -124,38 +184,67 @@ fun PantallaDiseñoSAGO() {
         }
 
         // ====================================================================
-        // COMBOBOX DE CLIENTES
+        // COMBOBOX DINÁMICO DE CLIENTES (DESDE FIRESTORE)
         // ====================================================================
         ExposedDropdownMenuBox(
             expanded = menuClientesExpandido,
-            onExpandedChange = { if (!cargando) menuClientesExpandido = !menuClientesExpandido }
+            onExpandedChange = {
+                if (!cargando && !cargandoClientes) {
+                    menuClientesExpandido = !menuClientesExpandido
+                }
+            }
         ) {
             OutlinedTextField(
-                value = clienteSeleccionado,
+                value = if (cargandoClientes) "Cargando clientes..." else clienteSeleccionado,
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Cliente / Empresa Visitada") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = menuClientesExpandido) },
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                trailingIcon = {
+                    if (cargandoClientes) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFFE21C24)
+                        )
+                    } else {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = menuClientesExpandido)
+                    }
+                },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFFE21C24),
                     focusedLabelColor = Color(0xFFE21C24),
                     unfocusedBorderColor = Color(0xFF5D6367)
                 ),
-                enabled = !cargando
+                enabled = !cargando && !cargandoClientes
             )
             ExposedDropdownMenu(
                 expanded = menuClientesExpandido,
                 onDismissRequest = { menuClientesExpandido = false }
             ) {
-                listaClientes.forEach { cliente ->
+                if (listaClientes.isEmpty()) {
                     DropdownMenuItem(
-                        text = { Text(text = cliente, fontSize = 15.sp) },
-                        onClick = {
-                            clienteSeleccionado = cliente
-                            menuClientesExpandido = false
-                        }
+                        text = {
+                            Text(
+                                text = "No hay clientes activos registrados",
+                                fontSize = 14.sp,
+                                color = Color(0xFF5D6367)
+                            )
+                        },
+                        onClick = { menuClientesExpandido = false }
                     )
+                } else {
+                    listaClientes.forEach { cliente ->
+                        DropdownMenuItem(
+                            text = { Text(text = cliente, fontSize = 15.sp) },
+                            onClick = {
+                                clienteSeleccionado = cliente
+                                menuClientesExpandido = false
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -279,15 +368,85 @@ fun PantallaDiseñoSAGO() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // ====================================================================
+        // TARJETA DE GEOLOCALIZACIÓN GPS DEL LUGAR
+        // ====================================================================
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Ubicación de la Visita (GPS)",
+                    color = Color(0xFF1E2225),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
 
-        // BOTÓN PRINCIPAL ACTUALIZADO
+                Text(
+                    text = if (ubicacionActual.latitud != 0.0) {
+                        "📍 ${ubicacionActual.direccionTexto}\n(${String.format(Locale.US, "%.5f", ubicacionActual.latitud)}, ${String.format(Locale.US, "%.5f", ubicacionActual.longitud)})"
+                    } else {
+                        "Sin ubicación capturada"
+                    },
+                    color = if (ubicacionActual.latitud != 0.0) Color(0xFF1E2225) else Color(0xFF5D6367),
+                    fontSize = 13.sp
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !cargando && !obteniendoUbicacion
+                ) {
+                    if (obteniendoUbicacion) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFFE21C24)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Obteniendo GPS...", color = Color(0xFF1E2225))
+                    } else {
+                        Text(
+                            text = if (ubicacionActual.latitud != 0.0) "Actualizar Ubicación" else "Capturar Ubicación Actual",
+                            color = Color(0xFFE21C24),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // BOTÓN PRINCIPAL ACTUALIZADO CON ENVÍO DE FOTO BASE64 Y UBICACIÓN GPS
         Button(
             onClick = {
                 if (clienteSeleccionado.isNotEmpty()) {
                     cargando = true
                     val fechaActual = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
                     val horaActual = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+
+                    // Convertir Bitmap a Base64 si el operador tomó foto
+                    val fotoBase64 = bitmapFoto?.let { bmp ->
+                        val outputStream = ByteArrayOutputStream()
+                        bmp.compress(Bitmap.CompressFormat.JPEG, 60, outputStream)
+                        val bytes = outputStream.toByteArray()
+                        "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    }
 
                     val datosMinuta = hashMapOf(
                         "vendedor" to vendedorAutenticado,
@@ -296,6 +455,10 @@ fun PantallaDiseñoSAGO() {
                         "fecha" to fechaActual,
                         "hora" to horaActual,
                         "estatus" to "Pendiente",
+                        "fotoBase64" to fotoBase64,
+                        "latitud" to ubicacionActual.latitud,
+                        "longitud" to ubicacionActual.longitud,
+                        "ubicacionTexto" to ubicacionActual.direccionTexto,
                         "actividades" to hashMapOf(
                             "talachear" to actTalachear,
                             "semaforear" to actSemaforear,
@@ -303,8 +466,6 @@ fun PantallaDiseñoSAGO() {
                             "recolectarRenovado" to actRecolectarRenovado
                         )
                     )
-
-                    val db = FirebaseFirestore.getInstance()
 
                     db.collection("minutas")
                         .add(datosMinuta)
@@ -320,6 +481,7 @@ fun PantallaDiseñoSAGO() {
                             actRecolectarDesecho = false
                             actRecolectarRenovado = false
                             bitmapFoto = null
+                            ubicacionActual = UbicacionMinuta()
                         }
                         .addOnFailureListener { e ->
                             cargando = false
