@@ -8,7 +8,7 @@ standalone React/Vite admin dashboard in `app/web`. A Node/TypeScript REST API n
 `docs/PLAN_CUMPLIMIENTO_RUBRICA.md` is the overall roadmap and scoring plan — it describes the
 **target**, not always the current code. For the current phase, read `docs/FASE_2_PLAN.md`.
 
-**Last verified against the repo:** 2026-11-23 (branch `CopiaHugo`, local HEAD `7789f`).
+**Last verified against the repo:** 2026-11-23 (branch `CopiaHugo`, HEAD `39fde`).
 
 ## Phase status
 
