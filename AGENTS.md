@@ -74,9 +74,9 @@ On Windows with PowerShell execution policy blocking `npm.ps1`, use `npm.cmd` / 
 - Verified 2026-11-24 on `sagochapu`: `typecheck`, `typecheck:scripts`, `build` and `npm test`.
   Still unverified: `migrar:dry-run` against real Firebase (no ADC credentials locally),
   compiling the rules with Firebase CLI (not installed) and the public photo URL in Storage.
-- Deployed on Render as service `sago-api`, connected to branch `CopiaHugo` (now `063b264`).
-  Verified live on Fase 1: `/health`, `/docs/`, `/openapi.json`, `401` without token,
-  `400` on invalid body, CORS. WP6 is on `sagochapu`, **not deployed to Render**.
+- Deployed on Render as service `sago-api`, connected to branch `CopiaHugo`. WP6 was merged into
+  `CopiaHugo` on 2026-11-24; **deployment of WP6 has not been verified yet**. Verified live on
+  Fase 1: `/health`, `/docs/`, `/openapi.json`, `401` without token, `400` on invalid body, CORS.
 - Credentials come **only** from environment variables (Firebase service account as base64). The real
   service account JSON lives outside the repo. Never add `.env`, IDs, tokens or keys to git.
 - WP6 adds optional `FIREBASE_STORAGE_BUCKET`: when empty, `nombreBucket()` uses
@@ -160,13 +160,13 @@ to the API.
   by Jonathan Garcia Martinez `<alu.23131213@correo.itlalaguna.edu.mx>`. Git identity is configured
   locally in this repo only. Check `git rev-list --count HEAD` for the current commit count.
 - Tag `v0.2.0-fase1` marks `a98bf`. Target tag for Fase 2 is `v0.3.0-fase2` (not created).
-- Remote branches (verified with `git ls-remote --heads origin`): `sagochapu` and
-  `feature/datos-seguros` point at the same commit; `CopiaHugo` at `063b264`; `jonycopia` at
-  `0a7715`; `master` at `1df968`; plus `Rayocopia` and `copia-main`. Local branches are `master`,
-  `sagochapu` and `feature/datos-seguros`; the latter was merged into `sagochapu` with `--ff-only`,
-  so those two branches (and their remote counterparts) point at the same commit.
-- WP6 was pushed to both `origin/sagochapu` and `origin/feature/datos-seguros` with the user's
-  explicit authorization. No push to `master` or `CopiaHugo` was made.
+- Remote branches (verified with `git ls-remote --heads origin`): WP6 is present on `sagochapu`,
+  `feature/datos-seguros` and `CopiaHugo`; `jonycopia` at `0a7715`; `master` at `1df968`; plus
+  `Rayocopia` and `copia-main`. Local branches are `master`, `sagochapu`, `feature/datos-seguros`
+  and `CopiaHugo`; `feature/datos-seguros` was merged into `sagochapu` with `--ff-only`, and
+  `sagochapu` was merged into `CopiaHugo` with `--ff-only` on 2026-11-24.
+- WP6 was pushed to `origin/sagochapu`, `origin/feature/datos-seguros` and `origin/CopiaHugo` with
+  the user's explicit authorization. No push to `master` was made.
 - `.idea/` is tracked, so `git status` is usually dirty (e.g. `M .idea/misc.xml`). Don't include
   unrelated IDE churn in commits.
 - No branch protection, PR merging or CI workflows yet, although `.github/` now has PR/issue
