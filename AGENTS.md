@@ -8,7 +8,7 @@ standalone React/Vite admin dashboard in `app/web`. A Node/TypeScript REST API n
 `docs/PLAN_CUMPLIMIENTO_RUBRICA.md` is the overall roadmap and scoring plan — it describes the
 **target**, not always the current code. For the current phase, read `docs/FASE_2_PLAN.md`.
 
-**Last verified against the repo:** 2026-11-24 (working branch `sagochapu`; check `git log -1` for
+**Last verified against the repo:** 2026-11-24 (working branch `CopiaHugo`; check `git log -1` for
 the current HEAD, since this file is versioned too).
 
 ## Phase status
@@ -17,15 +17,19 @@ the current HEAD, since this file is versioned too).
 |---|---|---|
 | Fase 0 — repo/backlog | Done | `docs/FASE_0_PLAN.md` |
 | Fase 1 — API base + Google auth + Swagger + deploy | **Done**, tag `v0.2.0-fase1` on `a98bf` | `docs/FASE_1_PLAN.md`, `docs/API_CONTRACT.md`, `docs/EVIDENCIAS.md` |
-| Fase 2 — business API + secure Firestore | **In progress**: WP6 done on `sagochapu`; WP7–WP9 pending | `docs/FASE_2_PLAN.md`, `docs/MODELO_DATOS.md`, `git log --grep='WP6'` |
+| Fase 2 — business API + secure Firestore | **In progress**: WP6 code complete and verified; `migrar:apply`, rules deployment and WP7–WP9 pending | `docs/FASE_2_PLAN.md`, `docs/MODELO_DATOS.md`, `git log --grep='WP6'` |
 | Fases 3–7 — Android refactor, offline, extra, web, docs | Not started | `docs/PLAN_CUMPLIMIENTO_RUBRICA.md` |
 
 Only WP6 of `docs/FASE_2_PLAN.md` is implemented: `backend/src/config/storage.ts`,
 `firestore.rules`, `storage.rules`, `firebase.json`, `firestore.indexes.json`,
-`scripts/migrar-datos.ts` and `docs/MODELO_DATOS.md` now exist. **WP7–WP9 are still pending**:
-there are no minuta/cliente/metrica routers, no 13 new endpoints, no expanded Swagger/Postman
-and no executed data migration. The rules are prepared locally but **not deployed**; activate
-them only at the end of Fase 2 as documented in `docs/MODELO_DATOS.md`.
+`scripts/migrar-datos.ts` and `docs/MODELO_DATOS.md` now exist. It passed `typecheck`,
+`typecheck:scripts`, `build` and 46 tests, and `migrar:dry-run` was executed against real
+Firestore on 2026-11-24 (4 usuarios, 2 clientes, 7 minutas; 6 fotos pendientes; 0 escrituras).
+**WP7–WP9 are still pending**: there are no minuta/cliente/metrica routers, no 13 new
+endpoints and no expanded Swagger/Postman. `migrar:apply` has **not** been executed, so no
+data has been changed yet. The rules are prepared locally but **not deployed**; activate
+them only at the end of Fase 2 as documented in `docs/MODELO_DATOS.md`. The task-8 deviation
+(legacy users have no `uid`/email to assign) is documented there too.
 
 ## Build & run — Android
 
@@ -71,9 +75,12 @@ On Windows with PowerShell execution policy blocking `npm.ps1`, use `npm.cmd` / 
   **46 tests passing** as of 2026-11-24, using fake repositories and pure adapter functions
   (no live Firebase in unit tests). They pass from `backend/` and from the repo root via
   `node backend/node_modules/vitest/vitest.mjs run --root backend`.
-- Verified 2026-11-24 on `sagochapu`: `typecheck`, `typecheck:scripts`, `build` and `npm test`.
-  Still unverified: `migrar:dry-run` against real Firebase (no ADC credentials locally),
-  compiling the rules with Firebase CLI (not installed) and the public photo URL in Storage.
+- Verified 2026-11-24 on `CopiaHugo`: `typecheck`, `typecheck:scripts`, `build` and `npm test`
+  (46 tests). `migrar:dry-run` was also executed against real Firebase with
+  `GOOGLE_APPLICATION_CREDENTIALS` pointing to the service account outside the repo; it reported
+  4 usuarios, 2 clientes, 7 minutas, 6 fotos pendientes, 0 fotos omitidas, 4 usuarios saneados,
+  and wrote nothing. Still unverified: `migrar:apply`, compiling the rules with Firebase CLI
+  (not installed), the public photo URL in Storage, and the WP6 deployment on Render.
 - Deployed on Render as service `sago-api`, connected to branch `CopiaHugo`. WP6 was merged into
   `CopiaHugo` on 2026-11-24; **deployment of WP6 has not been verified yet**. Verified live on
   Fase 1: `/health`, `/docs/`, `/openapi.json`, `401` without token, `400` on invalid body, CORS.
@@ -134,12 +141,17 @@ to the API.
   because it delegates to the system camera app. Switching to CameraX requires adding it.
 - Composable strings are hardcoded except `app_name` in `res/values/strings.xml`.
   `SGOMINUTASTheme` exists but is not applied in `MainActivity`; SAGO colors are hardcoded per screen.
-- Real Firestore data today is still the legacy snapshot: `usuarios` (4 docs: 3 with `contrasena`,
-  1 with `uid`/`email`/`rol`), `clientes` (1 doc), `minutas` (6 docs with `fotoBase64` inside the
-  document, 4 with GPS fields). The WP6 migration script has been written but **not run**, so no
-  fields have been renamed yet. `backend/firestore.rules` exists but is **not deployed**, so direct
-  client writes still work today. Do not rename fields directly: use the compatibility adapters in
-  `scripts/migrar-datos.ts` and `docs/MODELO_DATOS.md`.
+- Real Firestore data verified 2026-11-24: `usuarios` (4 docs, **all 4 with `contrasena`**; the
+  Google profile doc `e2MGLgZn4ONOqjM6PP25rBz6Fjm1` is gone from Firestore), `clientes` (2 docs),
+  `minutas` (7 docs with `fotoBase64` inside the document, 5 with GPS fields). Firebase Auth still
+  has 2 users (`qa@sagominutas.test` with uid `e2MGL…`, and `bryan171005@gmail.com`), so a Google
+  login recreates the profile in Firestore; the role then comes from `ADMIN_EMAILS` in
+  `auth.service.ts`. The WP6 migration script has been written and its dry-run verified, but
+  **`--apply` has not been run**, so no fields have been renamed and no password has been deleted
+  yet. Task 8's "assign `uid`/rol" cannot be done for these 4 legacy users (no email/uid); the
+  documented exception is in `docs/MODELO_DATOS.md`. `backend/firestore.rules` exists but is
+  **not deployed**, so direct client writes still work today. Do not rename fields directly: use
+  the compatibility adapters in `scripts/migrar-datos.ts` and `docs/MODELO_DATOS.md`.
 - `app/google-services.json` is committed; the web Firebase config is hardcoded in
   `app/web/src/firebase.js`. Never add service-account keys or other secrets.
 

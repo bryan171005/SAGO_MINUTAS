@@ -5,13 +5,23 @@ durante la Fase 2. Es el detalle operativo de `docs/FASE_2_PLAN.md`, §4.
 
 ## Estado de partida
 
-Antes de la Fase 2 los esquemas reales no coinciden con el modelo teórico:
+Verificado en Firestore el 2026-11-24. Los esquemas reales no coinciden con el modelo teórico:
 
 | Colección | Docs | Campos reales |
 |---|---|---|
-| `usuarios` | 4 | 3 legacy: `nombre, rol, contrasena, fechaAlta`. 1 Google: `uid, nombre, email, rol, activo, proveedor, fechaAlta, ultimoAcceso` |
-| `clientes` | 1 | `nombreEmpresa, contactoPrincipal, telefono, ciudad, unidadesTotales, fechaRegistro, activo` |
-| `minutas` | 6 | `cliente, vendedor, fecha, hora, detalles, actividades, estatus, fotoBase64` (4 con `latitud, longitud, ubicacionTexto`) |
+| `usuarios` | 4 | Los 4 son legacy: `nombre, rol, contrasena, fechaAlta`. El perfil Google `e2MGLgZn4ONOqjM6PP25rBz6Fjm1` ya no está en Firestore |
+| `clientes` | 2 | `nombreEmpresa, contactoPrincipal, telefono, ciudad, unidadesTotales, fechaRegistro, activo` |
+| `minutas` | 7 | `cliente, vendedor, fecha, hora, detalles, actividades, estatus, fotoBase64` (5 con `latitud, longitud, ubicacionTexto`) |
+
+Firebase Auth sí conserva 2 cuentas: `qa@sagominutas.test` (uid `e2MGL…`) y
+`bryan171005@gmail.com` (uid `oTka…`). Un login con Google recrea el documento de perfil en
+Firestore; `auth.service.ts` le asigna `rol: gerente` solo si el correo está en `ADMIN_EMAILS`,
+y `operador` en caso contrario.
+
+El `dry-run` de WP6 se ejecutó contra estos datos el 2026-11-24 y reportó: 7 minutas
+normalizadas, 2 clientes normalizados, 6 fotos pendientes de subir, 0 fotos omitidas y
+4 usuarios saneados. **No escribió nada**: los datos siguen intactos hasta que se ejecute
+`--apply`.
 
 ## Modelo objetivo
 
@@ -47,10 +57,20 @@ la migración **añade** campos nuevos y **conserva** los viejos (`merge: true`)
 
 Las comparaciones de nombre se hacen en minúsculas para resolver las referencias.
 
-## Usuarios legacy
+## Usuarios legacy y excepción documentada a la tarea 8
 
-Los 3 usuarios antiguos no tienen `uid` de Firebase Auth ni `email`, así que no pueden
-convertirse en cuentas Google de forma automática:
+La tarea 8 del plan pide *"quitar el campo `contrasena`, asignar `uid`/rol a los usuarios
+actuales"*. La segunda parte **no se puede cumplir automáticamente**: los 4 usuarios actuales
+no tienen `email` ni `uid` de Firebase Auth, y Auth solo contiene las 2 cuentas Google
+anteriores. No existe una correspondencia fiable para asignarles un `uid`.
+
+**Decisión acordada para Fase 2:** se documenta la excepción y se aplica la parte que sí es
+posible — borrar `contrasena` y marcar los perfiles como legacy inactivos. El acceso `gerente`
+se garantiza recreando el perfil Google al iniciar sesión (`auth.service.ts`), no migrando
+estos 4 documentos. Si más adelante se quiere la correspondencia exacta, hay que crear las
+cuentas en Firebase Auth y vincularlas manualmente por `uid`; queda fuera de WP6.
+
+En consecuencia, al aplicar la migración:
 
 - Se exporta un backup antes de cualquier escritura.
 - Se elimina `contrasena`.
@@ -100,13 +120,28 @@ en la que Android y web dejan de funcionar (ambos escriben Firestore directo hoy
 necesita una demo intermedia, las reglas pueden relajarse temporalmente y volver a
 cerrarse; esa decisión queda registrada aquí.
 
+## Estado de cierre de WP6 (2026-11-24)
+
+- **Listo:** `storage.ts`, reglas, `firebase.json`, índices, script de migración, adaptadores y
+  `docs/MODELO_DATOS.md`.
+- **Verificado:** `npm run typecheck`, `npm run typecheck:scripts`, `npm run build`, `npm test`
+  (46/46) y `npm run migrar:dry-run` contra Firestore real (0 escrituras).
+- **Pendiente y deliberadamente diferido hasta el cierre de Fase 2:** `migrar:apply`, el despliegue
+  de `firestore.rules` / `storage.rules` / índices y la verificación del deploy de WP6 en Render.
+- **Excepción documentada:** la parte de "asignar `uid`" de la tarea 8 no se aplica a los 4
+  usuarios legacy; ver la sección anterior.
+
 ## Migración
 
 ```powershell
-cd C:\Users\jonyg\StudioProjects\SAGO_MINUTAS\backend
-npm.cmd run migrar:dry-run   # imprime el plan, no escribe nada
-npm.cmd run migrar:apply     # exporta backup y aplica cambios
+cd backend
+npm run migrar:dry-run   # imprime el plan, no escribe nada
+npm run migrar:apply     # exporta backup y aplica cambios
 ```
+
+Si PowerShell bloquea `npm.ps1`, usa el ejecutable que tenga instalado (`npm` / `npm.cmd`).
+El `dry-run` necesita `FIREBASE_SERVICE_ACCOUNT_BASE64` o `GOOGLE_APPLICATION_CREDENTIALS`
+apuntando al service account, que vive fuera del repo.
 
 `--apply` requiere `FIREBASE_SERVICE_ACCOUNT_BASE64` o credenciales ADC. Los backups se
 guardan en `backend/backups/<fecha>/` y están excluidos de Git por contener datos personales.
