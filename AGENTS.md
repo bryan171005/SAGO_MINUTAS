@@ -8,8 +8,8 @@ standalone React/Vite admin dashboard in `app/web`. A Node/TypeScript REST API n
 `docs/PLAN_CUMPLIMIENTO_RUBRICA.md` is the overall roadmap and scoring plan — it describes the
 **target**, not always the current code. For the current phase, read `docs/FASE_2_PLAN.md`.
 
-**Last verified against the repo:** 2026-11-23 (working branch `CopiaHugo`; check `git log` for the
-current HEAD, since this file is versioned too).
+**Last verified against the repo:** 2026-11-24 (working branch `sagochapu`; check `git log -1` for
+the current HEAD, since this file is versioned too).
 
 ## Phase status
 
@@ -17,12 +17,15 @@ current HEAD, since this file is versioned too).
 |---|---|---|
 | Fase 0 — repo/backlog | Done | `docs/FASE_0_PLAN.md` |
 | Fase 1 — API base + Google auth + Swagger + deploy | **Done**, tag `v0.2.0-fase1` on `a98bf` | `docs/FASE_1_PLAN.md`, `docs/API_CONTRACT.md`, `docs/EVIDENCIAS.md` |
-| Fase 2 — business API + secure Firestore | **Planned, not started** | `docs/FASE_2_PLAN.md` (WPs 6–9, split across 3 people) |
+| Fase 2 — business API + secure Firestore | **In progress**: WP6 done on `sagochapu`; WP7–WP9 pending | `docs/FASE_2_PLAN.md`, `docs/MODELO_DATOS.md`, `git log --grep='WP6'` |
 | Fases 3–7 — Android refactor, offline, extra, web, docs | Not started | `docs/PLAN_CUMPLIMIENTO_RUBRICA.md` |
 
-Do not treat the Fase 2 tasks in `docs/FASE_2_PLAN.md` as implemented. In particular,
-`firestore.rules`, `storage.rules`, `firebase.json`, `firestore.indexes.json` and the minuta/cliente/
-metrica routers **do not exist yet**.
+Only WP6 of `docs/FASE_2_PLAN.md` is implemented: `backend/src/config/storage.ts`,
+`firestore.rules`, `storage.rules`, `firebase.json`, `firestore.indexes.json`,
+`scripts/migrar-datos.ts` and `docs/MODELO_DATOS.md` now exist. **WP7–WP9 are still pending**:
+there are no minuta/cliente/metrica routers, no 13 new endpoints, no expanded Swagger/Postman
+and no executed data migration. The rules are prepared locally but **not deployed**; activate
+them only at the end of Fase 2 as documented in `docs/MODELO_DATOS.md`.
 
 ## Build & run — Android
 
@@ -48,22 +51,39 @@ cd backend
 npm install                 # node_modules is gitignored and not committed
 npm run dev                 # tsx watch src/server.ts
 npm run typecheck           # tsc --noEmit
+npm run typecheck:scripts   # tsc --noEmit -p tsconfig.scripts.json (scripts/)
 npm run build               # tsc -p tsconfig.json -> dist/
 npm test                    # vitest run
+npm run migrar:dry-run      # tsx scripts/migrar-datos.ts --dry-run (read-only, needs Firebase creds)
 ```
+
+On Windows with PowerShell execution policy blocking `npm.ps1`, use `npm.cmd` / `npx.cmd`.
 
 - Entry points: `src/server.ts` (listen) and `src/app.ts` (router registration). **Only the WP7 owner
   edits `app.ts`** during Fase 2, to avoid merge conflicts.
-- Structure today: `src/config/` (firebase Admin lazy init), `src/middlewares/` (`requiereAuth`,
-  `requiereRol`, error handling), `src/auth/`, `src/usuarios/`, `src/routes/`, `src/types/`.
+- Structure today: `src/config/` (firebase Admin lazy init + `storage.ts` with `getStorage()`,
+  `getBucket()` and `nombreBucket()`), `src/middlewares/` (`requiereAuth`, `requiereRol`, error
+  handling), `src/auth/`, `src/usuarios/`, `src/routes/`, `src/types/`. WP6 also adds
+  `backend/scripts/` (migration) and `backend/tests/datos-seguros.test.ts`.
 - `backend/openapi.yaml` is the **single source of truth** for Swagger. `/openapi.json` and `/docs/`
   are generated from it; don't hand-maintain a second copy.
-- Tests: `backend/tests/health.test.ts` and `auth.test.ts` — 2 files, **32 tests passing** as of
-  2026-11-20, using fake repositories (no live Firebase in unit tests).
-- Deployed on Render as service `sago-api`, connected to branch `CopiaHugo`. Verified live:
-  `/health`, `/docs/`, `/openapi.json`, `401` without token, `400` on invalid body, CORS.
+- Tests: `backend/tests/health.test.ts`, `auth.test.ts` and `datos-seguros.test.ts` — 3 files,
+  **46 tests passing** as of 2026-11-24, using fake repositories and pure adapter functions
+  (no live Firebase in unit tests). They pass from `backend/` and from the repo root via
+  `node backend/node_modules/vitest/vitest.mjs run --root backend`.
+- Verified 2026-11-24 on `sagochapu`: `typecheck`, `typecheck:scripts`, `build` and `npm test`.
+  Still unverified: `migrar:dry-run` against real Firebase (no ADC credentials locally),
+  compiling the rules with Firebase CLI (not installed) and the public photo URL in Storage.
+- Deployed on Render as service `sago-api`, connected to branch `CopiaHugo` (now `063b264`).
+  Verified live on Fase 1: `/health`, `/docs/`, `/openapi.json`, `401` without token,
+  `400` on invalid body, CORS. WP6 is on `sagochapu`, **not deployed to Render**.
 - Credentials come **only** from environment variables (Firebase service account as base64). The real
   service account JSON lives outside the repo. Never add `.env`, IDs, tokens or keys to git.
+- WP6 adds optional `FIREBASE_STORAGE_BUCKET`: when empty, `nombreBucket()` uses
+  `<FIREBASE_PROJECT_ID>.appspot.com`; set it explicitly for `*.firebasestorage.app` buckets.
+  `npm run migrar:apply` requires those credentials and exports a backup to
+  `backend/backups/` (gitignored) before writing. **It has not been executed**; see
+  `docs/MODELO_DATOS.md`.
 
 ## Tests, lint — Android
 
@@ -114,10 +134,12 @@ to the API.
   because it delegates to the system camera app. Switching to CameraX requires adding it.
 - Composable strings are hardcoded except `app_name` in `res/values/strings.xml`.
   `SGOMINUTASTheme` exists but is not applied in `MainActivity`; SAGO colors are hardcoded per screen.
-- Real Firestore data today: `usuarios` (4 docs: 3 legacy with `contrasena`, 1 with `uid`/`email`/`rol`),
-  `clientes` (1 doc), `minutas` (6 docs carrying `fotoBase64` inside the document, 4 with GPS fields).
-  There is still no `firestore.rules`. Do not rename fields directly: Fase 2 needs compatibility
-  adapters (see `docs/FASE_2_PLAN.md`, §4).
+- Real Firestore data today is still the legacy snapshot: `usuarios` (4 docs: 3 with `contrasena`,
+  1 with `uid`/`email`/`rol`), `clientes` (1 doc), `minutas` (6 docs with `fotoBase64` inside the
+  document, 4 with GPS fields). The WP6 migration script has been written but **not run**, so no
+  fields have been renamed yet. `backend/firestore.rules` exists but is **not deployed**, so direct
+  client writes still work today. Do not rename fields directly: use the compatibility adapters in
+  `scripts/migrar-datos.ts` and `docs/MODELO_DATOS.md`.
 - `app/google-services.json` is committed; the web Firebase config is hardcoded in
   `app/web/src/firebase.js`. Never add service-account keys or other secrets.
 
@@ -134,25 +156,33 @@ to the API.
 
 - Remote: `https://github.com/bryan171005/SAGO_MINUTAS.git`. Default branch is **`master`**, not `main`
   (confirmed via `git ls-remote --symref origin HEAD`).
-- The repo has **18 commits**, not one. `origin/CopiaHugo` points at `a98bf` (Fase 1); local
-  `CopiaHugo` has one extra local commit `7789f` (the Fase 2 plan) pending push.
-- Tag `v0.2.0-fase1` marks `a98bf`. Target tag for Fase 2 is `v0.3.0-fase2`.
-- Branches in use: `master`, `Hugo`, `Copia` (all at the old base), `Rayocopia` (GPS/map work),
-  `CopiaHugo` (integration), `feature/backend-core` (`768c6`, kept but superseded),
-  `feature/swagger-tests` (`a98bf`, merged; safe to delete).
+- The WP6 commit (`feat(fase2): datos seguros, reglas y migracion con dry-run (WP6)`) was authored
+  by Jonathan Garcia Martinez `<alu.23131213@correo.itlalaguna.edu.mx>`. Git identity is configured
+  locally in this repo only. Check `git rev-list --count HEAD` for the current commit count.
+- Tag `v0.2.0-fase1` marks `a98bf`. Target tag for Fase 2 is `v0.3.0-fase2` (not created).
+- Remote branches (verified with `git ls-remote --heads origin`): `sagochapu` and
+  `feature/datos-seguros` point at the same commit; `CopiaHugo` at `063b264`; `jonycopia` at
+  `0a7715`; `master` at `1df968`; plus `Rayocopia` and `copia-main`. Local branches are `master`,
+  `sagochapu` and `feature/datos-seguros`; the latter was merged into `sagochapu` with `--ff-only`,
+  so all three refs involved point at the same commit.
+- WP6 was pushed to both `origin/sagochapu` and `origin/feature/datos-seguros` with the user's
+  explicit authorization. No push to `master` or `CopiaHugo` was made.
 - `.idea/` is tracked, so `git status` is usually dirty (e.g. `M .idea/misc.xml`). Don't include
   unrelated IDE churn in commits.
 - No branch protection, PR merging or CI workflows yet, although `.github/` now has PR/issue
   templates. The plan proposes Git Flow (`main`/`develop`/`feature/*`); until it exists, don't push,
-  rewrite history or create release branches without the user's confirmation.
-- Fase 2 branches and merge order are defined in `docs/FASE_2_PLAN.md` §3:
+  rewrite history or create release branches without the user's confirmation. The WP6 pushes were
+  explicitly confirmed; the plan's merge order is still
   `feature/datos-seguros` → `feature/api-minutas` → `feature/api-catalogos` → `feature/contrato-fase2`.
+- Full WP ownership and merge details remain in `docs/FASE_2_PLAN.md` §3.
 
 ## Before finishing a change
 
 1. Android: `.\gradlew.bat assembleDebug` → `testDebugUnitTest` → `lintDebug` (with `JAVA_HOME` set).
-2. Backend: `npm run typecheck` → `npm run build` → `npm test` inside `backend/`.
+2. Backend: `npm run typecheck` → `npm run typecheck:scripts` → `npm run build` → `npm test`
+   inside `backend/`; `npm run migrar:dry-run` only when Firebase credentials are available.
 3. Web: `npm run lint` → `npm run build` inside `app/web`.
-4. Never commit `.idea/misc.xml`, `.env`, service accounts, tokens or generated `dist/`. The root
-   `.gitignore` already covers `node_modules/`, `dist/`, `.env*` and `firebase-adminsdk*.json`;
-   update it if a new dependency needs another ignore rule.
+4. Never commit `.idea/misc.xml`, `.env`, service accounts, tokens, generated `dist/` or
+   `backend/backups/`. The root `.gitignore` covers `node_modules/`, `dist/`, `.env*`,
+   `firebase-adminsdk*.json` and `backend/backups/`; update it if a new dependency needs another
+   ignore rule.
