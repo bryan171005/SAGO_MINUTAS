@@ -164,7 +164,7 @@ to the API.
   `feature/datos-seguros` point at the same commit; `CopiaHugo` at `063b264`; `jonycopia` at
   `0a7715`; `master` at `1df968`; plus `Rayocopia` and `copia-main`. Local branches are `master`,
   `sagochapu` and `feature/datos-seguros`; the latter was merged into `sagochapu` with `--ff-only`,
-  so all three refs involved point at the same commit.
+  so those two branches (and their remote counterparts) point at the same commit.
 - WP6 was pushed to both `origin/sagochapu` and `origin/feature/datos-seguros` with the user's
   explicit authorization. No push to `master` or `CopiaHugo` was made.
 - `.idea/` is tracked, so `git status` is usually dirty (e.g. `M .idea/misc.xml`). Don't include
