@@ -9,6 +9,9 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
+    "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json",
+    "migrar:dry-run": "tsx scripts/migrar-datos.ts --dry-run",
+    "migrar:apply": "tsx scripts/migrar-datos.ts --apply",
     "test": "vitest run",
     "test:watch": "vitest"
   },

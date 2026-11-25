@@ -27,3 +27,6 @@ firebase-adminsdk*.json
 # Dependencias y artefactos web
 node_modules/
 dist/
+
+# Backups de la migracion (pueden contener datos personales)
+backend/backups/

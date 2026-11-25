@@ -12,6 +12,7 @@ const esquemaEntorno = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   FIREBASE_PROJECT_ID: z.string().min(1).default("sago-minutas"),
   FIREBASE_SERVICE_ACCOUNT_BASE64: z.string().default(""),
+  FIREBASE_STORAGE_BUCKET: z.string().default(""),
   ADMIN_EMAILS: z.string().default("").transform(listaSeparadaPorComas),
   CORS_ORIGINS: z
     .string()
