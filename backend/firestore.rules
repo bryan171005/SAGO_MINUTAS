@@ -1,0 +1,12 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // El cliente (Android/web) no accede directamente: toda lectura y
+    // escritura pasa por la API, que usa Firebase Admin SDK y no está
+    // sujeta a estas reglas.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
