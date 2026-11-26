@@ -17,19 +17,21 @@ the current HEAD, since this file is versioned too).
 |---|---|---|
 | Fase 0 — repo/backlog | Done | `docs/FASE_0_PLAN.md` |
 | Fase 1 — API base + Google auth + Swagger + deploy | **Done**, tag `v0.2.0-fase1` on `a98bf` | `docs/FASE_1_PLAN.md`, `docs/API_CONTRACT.md`, `docs/EVIDENCIAS.md` |
-| Fase 2 — business API + secure Firestore | **In progress**: WP6 code complete and verified; `migrar:apply`, rules deployment and WP7–WP9 pending | `docs/FASE_2_PLAN.md`, `docs/MODELO_DATOS.md`, `git log --grep='WP6'` |
+| Fase 2 — business API + secure Firestore | **In progress**: WP6 and WP7 merged into `CopiaHugo`; `migrar:apply`, rules deployment and WP8–WP9 pending | `docs/FASE_2_PLAN.md`, `docs/MODELO_DATOS.md`, `git log --grep='WP'` |
 | Fases 3–7 — Android refactor, offline, extra, web, docs | Not started | `docs/PLAN_CUMPLIMIENTO_RUBRICA.md` |
 
-Only WP6 of `docs/FASE_2_PLAN.md` is implemented: `backend/src/config/storage.ts`,
+WP6 and WP7 of `docs/FASE_2_PLAN.md` are implemented. WP6 adds `backend/src/config/storage.ts`,
 `firestore.rules`, `storage.rules`, `firebase.json`, `firestore.indexes.json`,
-`scripts/migrar-datos.ts` and `docs/MODELO_DATOS.md` now exist. It passed `typecheck`,
-`typecheck:scripts`, `build` and 46 tests, and `migrar:dry-run` was executed against real
-Firestore on 2026-11-24 (4 usuarios, 2 clientes, 7 minutas; 6 fotos pendientes; 0 escrituras).
-**WP7–WP9 are still pending**: there are no minuta/cliente/metrica routers, no 13 new
-endpoints and no expanded Swagger/Postman. `migrar:apply` has **not** been executed, so no
-data has been changed yet. The rules are prepared locally but **not deployed**; activate
-them only at the end of Fase 2 as documented in `docs/MODELO_DATOS.md`. The task-8 deviation
-(legacy users have no `uid`/email to assign) is documented there too.
+`scripts/migrar-datos.ts` and `docs/MODELO_DATOS.md`; its `dry-run` ran against real Firestore on
+2026-11-24 (4 usuarios, 2 clientes, 7 minutas; 6 fotos pendientes; 0 escrituras). WP7 adds
+`backend/src/minutas/` and 5 endpoints under `/api/v1/minutas` (list with filters/order/pagination,
+get by id, create, status change by gerente, photo upload), with Firestore compatibility writes,
+a transactional `Pendiente → Autorizado|Rechazado` transition and Storage uploads via `getBucket()`.
+**WP8–WP9 are still pending**: there are no cliente/metrica routers, only 5 of the 13 new endpoints
+exist, and Swagger/Postman are not expanded yet. `migrar:apply` has **not** been executed, so no
+data has been changed yet. The rules are prepared locally but **not deployed**; activate them only
+at the end of Fase 2 as documented in `docs/MODELO_DATOS.md`. The task-8 deviation (legacy users
+have no `uid`/email to assign) is documented there too.
 
 ## Build & run — Android
 
@@ -67,23 +69,29 @@ On Windows with PowerShell execution policy blocking `npm.ps1`, use `npm.cmd` / 
   edits `app.ts`** during Fase 2, to avoid merge conflicts.
 - Structure today: `src/config/` (firebase Admin lazy init + `storage.ts` with `getStorage()`,
   `getBucket()` and `nombreBucket()`), `src/middlewares/` (`requiereAuth`, `requiereRol`, error
-  handling), `src/auth/`, `src/usuarios/`, `src/routes/`, `src/types/`. WP6 also adds
-  `backend/scripts/` (migration) and `backend/tests/datos-seguros.test.ts`.
+  handling), `src/auth/`, `src/usuarios/`, `src/routes/`, `src/types/`. WP6 adds
+  `backend/scripts/` (migration) and `backend/tests/datos-seguros.test.ts`; WP7 adds
+  `src/minutas/` (types, adapter, schemas, repository, service, storage, controller, routes)
+  and `backend/tests/minutas.test.ts`. WP7 also adds the `multer` dependency.
 - `backend/openapi.yaml` is the **single source of truth** for Swagger. `/openapi.json` and `/docs/`
   are generated from it; don't hand-maintain a second copy.
-- Tests: `backend/tests/health.test.ts`, `auth.test.ts` and `datos-seguros.test.ts` — 3 files,
-  **46 tests passing** as of 2026-11-24, using fake repositories and pure adapter functions
-  (no live Firebase in unit tests). They pass from `backend/` and from the repo root via
+- Tests: `backend/tests/health.test.ts`, `auth.test.ts`, `datos-seguros.test.ts` and
+  `minutas.test.ts` — 4 files, **77 tests passing** as of 2026-11-25, using fake repositories,
+  fake uploaders and pure adapter functions (no live Firebase in unit tests). They pass from
+  `backend/` and from the repo root via
   `node backend/node_modules/vitest/vitest.mjs run --root backend`.
-- Verified 2026-11-24 on `CopiaHugo`: `typecheck`, `typecheck:scripts`, `build` and `npm test`
-  (46 tests). `migrar:dry-run` was also executed against real Firebase with
+- Verified 2026-11-25 on `CopiaHugo` after the WP7 merge: `typecheck`, `typecheck:scripts`,
+  `build` and `npm test` (77 tests); `createApp()` boots without Firebase credentials and
+  protects the new routes with 401. `migrar:dry-run` was also executed against real Firebase with
   `GOOGLE_APPLICATION_CREDENTIALS` pointing to the service account outside the repo; it reported
   4 usuarios, 2 clientes, 7 minutas, 6 fotos pendientes, 0 fotos omitidas, 4 usuarios saneados,
   and wrote nothing. Still unverified: `migrar:apply`, compiling the rules with Firebase CLI
   (not installed), the public photo URL in Storage, and the WP6 deployment on Render.
 - Deployed on Render as service `sago-api`, connected to branch `CopiaHugo`. WP6 was merged into
-  `CopiaHugo` on 2026-11-24; **deployment of WP6 has not been verified yet**. Verified live on
-  Fase 1: `/health`, `/docs/`, `/openapi.json`, `401` without token, `400` on invalid body, CORS.
+  `CopiaHugo` on 2026-11-24 and WP7 on 2026-11-25; **deployment of either has not been verified
+  yet**. Verified live on Fase 1: `/health`, `/docs/`, `/openapi.json`, `401` without token,
+  `400` on invalid body, CORS. The WP7 photo upload is tested with a fake uploader only; the real
+  Firebase Storage write and public URL still need QA with credentials.
 - Credentials come **only** from environment variables (Firebase service account as base64). The real
   service account JSON lives outside the repo. Never add `.env`, IDs, tokens or keys to git.
 - WP6 adds optional `FIREBASE_STORAGE_BUCKET`: when empty, `nombreBucket()` uses
