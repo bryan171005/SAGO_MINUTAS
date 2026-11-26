@@ -1,10 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
+import multer from "multer";
 
 export type CodigoError =
   | "VALIDATION_ERROR"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "NOT_FOUND"
+  | "CONFLICT"
+  | "UNSUPPORTED_MEDIA_TYPE"
   | "INTERNAL_ERROR"
   | "NOT_IMPLEMENTED"
   | "PAYLOAD_TOO_LARGE";
@@ -47,6 +50,16 @@ export const errorHandler = (err: unknown, _req: Request, res: Response, next: N
 
   if (err instanceof HttpError) {
     responderError(res, err.status, err.code, err.message);
+    return;
+  }
+
+  // Multer lanza sus propios errores (tamano, numero de archivos, campos).
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      responderError(res, 413, "PAYLOAD_TOO_LARGE", "La foto excede el tamano permitido");
+      return;
+    }
+    responderError(res, 400, "VALIDATION_ERROR", `Error al subir la foto: ${err.code}`);
     return;
   }
 

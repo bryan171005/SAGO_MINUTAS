@@ -5,6 +5,7 @@ import { authRouter } from "./auth/auth.routes";
 import { corsOptions } from "./config/cors";
 import { docsRouter, openapiJson } from "./config/swagger";
 import { errorHandler, notFound } from "./middlewares/error";
+import { minutasRouter } from "./minutas/minutas.routes";
 import { healthRouter } from "./routes/health";
 
 export function createApp(): Express {
@@ -18,6 +19,7 @@ export function createApp(): Express {
   app.use("/docs", docsRouter);
   app.use("/health", healthRouter);
   app.use("/api/v1/auth", authRouter);
+  app.use("/api/v1/minutas", minutasRouter);
 
   app.use(notFound);
   app.use(errorHandler);
